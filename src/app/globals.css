@@ -1,26 +1,333 @@
 @import "tailwindcss";
+@import "react-day-picker/style.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Theme system — switch via data-theme on <html>.
+ * Default: shadcn Green + warm charcoal (#1A1A17) instead of pure black.
+ * Additional themes (blue, zinc, rose) ready for client switching.
+ */
+
+:root,
+[data-theme="green"] {
+  --background: #FAFAF8;
+  --foreground: #1A1A17;
+  --card: #FFFFFF;
+  --card-foreground: #1A1A17;
+  --popover: #FFFFFF;
+  --popover-foreground: #1A1A17;
+  --primary: #16A34A;
+  --primary-foreground: #F0FDF4;
+  --primary-hover: #15803D;
+  --primary-glow: rgba(22, 163, 74, 0.22);
+  --secondary: #F5F5F2;
+  --secondary-foreground: #1A1A17;
+  --muted: #F0EFEB;
+  --muted-foreground: #6B6B63;
+  --accent: #ECFDF3;
+  --accent-foreground: #166534;
+  --destructive: #DC2626;
+  --destructive-foreground: #FEF2F2;
+  --border: #E5E4DF;
+  --input: #D9D8D2;
+  --ring: #16A34A;
+  --success: #16A34A;
+  --warning: #D97706;
+  --base: #1A1A17;
+  --sidebar: #1A1A17;
+  --sidebar-foreground: #F5F5F2;
+  --sidebar-muted: #A3A39A;
+  --sidebar-accent: rgba(22, 163, 74, 0.16);
+  --sidebar-accent-foreground: #86EFAC;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-hover: rgba(255, 255, 255, 0.06);
+  --chart-1: #16A34A;
+  --chart-2: #A8A29E;
+  --chart-3: #2563EB;
+  --chart-4: #D97706;
+  --chart-5: #9333EA;
+  --stat-primary: rgba(22, 163, 74, 0.14);
+  --stat-blue: rgba(37, 99, 235, 0.14);
+  --stat-amber: rgba(217, 119, 6, 0.14);
+  --stat-violet: rgba(147, 51, 234, 0.14);
+  --canvas-glow-primary: rgba(22, 163, 74, 0.08);
+  --canvas-glow-secondary: rgba(22, 163, 74, 0.04);
+  --field-gradient-from: #FFFFFF;
+  --field-gradient-to: #FAFAF8;
+  --shadow-soft: 0 1px 2px rgba(26, 26, 23, 0.04), 0 8px 24px rgba(26, 26, 23, 0.06);
+  --shadow-card: 0 1px 3px rgba(26, 26, 23, 0.05), 0 12px 32px rgba(26, 26, 23, 0.08);
+  --radius: 0.75rem;
+  --sidebar-width: 17.5rem;
+  --sidebar-width-collapsed: 4.75rem;
+}
+
+[data-theme="blue"] {
+  --primary: #2563EB;
+  --primary-foreground: #EFF6FF;
+  --primary-hover: #1D4ED8;
+  --primary-glow: rgba(37, 99, 235, 0.22);
+  --accent: #EFF6FF;
+  --accent-foreground: #1E40AF;
+  --ring: #2563EB;
+  --sidebar-accent: rgba(37, 99, 235, 0.16);
+  --sidebar-accent-foreground: #93C5FD;
+  --chart-1: #2563EB;
+  --stat-primary: rgba(37, 99, 235, 0.14);
+  --stat-blue: rgba(37, 99, 235, 0.14);
+  --canvas-glow-primary: rgba(37, 99, 235, 0.08);
+  --canvas-glow-secondary: rgba(37, 99, 235, 0.04);
+}
+
+[data-theme="zinc"] {
+  --primary: #3F3F46;
+  --primary-foreground: #FAFAFA;
+  --primary-hover: #27272A;
+  --primary-glow: rgba(63, 63, 70, 0.18);
+  --accent: #F4F4F5;
+  --accent-foreground: #27272A;
+  --ring: #3F3F46;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #E4E4E7;
+  --chart-1: #3F3F46;
+  --stat-primary: rgba(63, 63, 70, 0.12);
+  --canvas-glow-primary: rgba(63, 63, 70, 0.06);
+  --canvas-glow-secondary: rgba(63, 63, 70, 0.03);
+}
+
+[data-theme="rose"] {
+  --primary: #E11D48;
+  --primary-foreground: #FFF1F2;
+  --primary-hover: #BE123C;
+  --primary-glow: rgba(225, 29, 72, 0.22);
+  --accent: #FFF1F2;
+  --accent-foreground: #BE123C;
+  --ring: #E11D48;
+  --sidebar-accent: rgba(225, 29, 72, 0.16);
+  --sidebar-accent-foreground: #FDA4AF;
+  --chart-1: #E11D48;
+  --stat-primary: rgba(225, 29, 72, 0.14);
+  --canvas-glow-primary: rgba(225, 29, 72, 0.08);
+  --canvas-glow-secondary: rgba(225, 29, 72, 0.04);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-base: var(--base);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --font-sans: var(--font-dm-sans), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.field-control {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  height: 2.75rem;
+  width: 100%;
+  border-radius: calc(var(--radius) + 2px);
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--field-gradient-from) 0%, var(--field-gradient-to) 100%);
+  padding-inline: 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--foreground);
+  box-shadow: inset 0 1px 2px rgba(26, 26, 23, 0.04);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.field-control:focus-within {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow:
+    0 0 0 3px var(--primary-glow),
+    inset 0 1px 2px rgba(26, 26, 23, 0.04);
+  background: var(--card);
+}
+
+/* Nested input/select inside a field shell (search, etc.) */
+.field-control-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  box-shadow: none;
+  outline: none;
+  font: inherit;
+  font-weight: 500;
+  color: inherit;
+}
+
+.field-control-input::placeholder {
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+
+.field-control-input:focus,
+.field-control-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.field-control-input[type="search"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.field-control-input[type="search"]::-webkit-search-decoration,
+.field-control-input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Icon offsets for native selects */
+.field-control--icon-end {
+  padding-inline-end: 2.5rem;
+}
+
+.field-control::placeholder {
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+
+.field-control:hover:not(:disabled):not(:focus-visible) {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+}
+
+.field-control:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow:
+    0 0 0 3px var(--primary-glow),
+    inset 0 1px 2px rgba(26, 26, 23, 0.04);
+  background: var(--card);
+}
+
+/* Standalone inputs (not nested in field shell) */
+input.field-control:not(.field-control-input),
+textarea.field-control,
+select.field-control {
+  padding-block: 0;
+}
+
+input.field-control:not(.field-control-input):focus-visible,
+textarea.field-control:focus-visible,
+select.field-control:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow:
+    0 0 0 3px var(--primary-glow),
+    inset 0 1px 2px rgba(26, 26, 23, 0.04);
+  background: var(--card);
+}
+
+.field-control:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.page-canvas {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, var(--canvas-glow-primary), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, var(--canvas-glow-secondary), transparent 50%),
+    var(--background);
+}
+
+.login-canvas {
+  background-color: var(--muted);
+  background-image:
+    radial-gradient(ellipse 100% 80% at 50% -20%, var(--canvas-glow-primary), transparent 50%),
+    linear-gradient(180deg, var(--background) 0%, var(--muted) 100%);
+}
+
+/* react-day-picker — theme alignment */
+.rdp-root {
+  --rdp-accent-color: var(--primary);
+  --rdp-accent-background-color: var(--accent);
+  --rdp-day-height: 2.25rem;
+  --rdp-day-width: 2.25rem;
+  --rdp-selected-border: none;
+  font-family: var(--font-sans);
+}
+
+.rdp-months {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap;
+  gap: 1.5rem;
+}
+
+.rdp-month {
+  flex-shrink: 0;
+}
+
+.rdp-day_button:hover:not([disabled]) {
+  background: var(--accent);
+  color: var(--accent-foreground);
 }
