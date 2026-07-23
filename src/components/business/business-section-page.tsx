@@ -62,7 +62,7 @@ function BusinessSectionContent({ businessType, title, description }: BusinessSe
         actions={canCreate ? <Button onClick={() => setDialogOpen(true)}>Add Project</Button> : undefined}
       />
 
-      <div className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard title="Total Projects" value={summary?.totalProjects ?? 0} accent="blue" onClick={() => router.push(`${basePath}#projects`)} />
         <StatCard title="Total Invoices" value={summary?.totalInvoices ?? 0} accent="violet" onClick={() => router.push(`${basePath}/invoices`)} />
         <StatCard
@@ -70,6 +70,14 @@ function BusinessSectionContent({ businessType, title, description }: BusinessSe
           value={summary?.totalInvoiceAmount ?? 0}
           currency={currency}
           accent="primary"
+          onClick={() => router.push(`${basePath}/invoices`)}
+        />
+        <StatCard
+          title="Total VAT"
+          value={summary?.totalVatAmount ?? 0}
+          currency={currency}
+          accent="violet"
+          subtitle="Preview only — not added to invoice totals"
           onClick={() => router.push(`${basePath}/invoices`)}
         />
         <StatCard

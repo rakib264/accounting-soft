@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePermission } from "@/hooks/use-permission";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { showSuccess } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 import {
   Expense,
   Invoice,
@@ -107,8 +108,16 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
       { accessorKey: "invoiceDate", header: "Date", cell: ({ row }) => formatDate(row.original.invoiceDate) },
       { accessorKey: "lineItemSummary", header: "Line Items" },
       { accessorKey: "subtotal", header: "Subtotal", cell: ({ row }) => formatCurrency(row.original.subtotal, currency) },
-      { accessorKey: "vatAmount", header: "VAT", cell: ({ row }) => formatCurrency(row.original.vatAmount, currency) },
-      { accessorKey: "total", header: "Total", cell: ({ row }) => formatCurrency(row.original.total, currency) },
+      {
+        accessorKey: "vatAmount",
+        header: "VAT (preview)",
+        cell: ({ row }) => formatCurrency(row.original.vatAmount, currency),
+      },
+      {
+        accessorKey: "total",
+        header: "Total",
+        cell: ({ row }) => formatCurrency(row.original.subtotal, currency),
+      },
       {
         accessorKey: "attachments",
         header: "Files",
@@ -190,16 +199,21 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
           }
         />
 
-        <div className="mb-6 grid gap-4 md:grid-cols-4">
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {[
             { label: "Invoiced", value: formatCurrency(project.totalInvoiced, currency) },
+            {
+              label: "Total VAT (preview)",
+              value: formatCurrency(project.totalVatAmount ?? 0, currency),
+              muted: true,
+            },
             { label: "Expenses", value: formatCurrency(project.totalExpenses, currency) },
             { label: "Invoices", value: project.invoiceCount ?? 0 },
             { label: "Expense Records", value: project.expenseCount ?? 0 },
           ].map((stat) => (
             <div key={stat.label} className="rounded-xl border border-border bg-card p-4 shadow-sm">
               <p className="text-sm text-muted-foreground">{stat.label}</p>
-              <p className="text-xl font-bold text-foreground">{stat.value}</p>
+              <p className={cn("text-xl font-bold", stat.muted ? "text-muted-foreground" : "text-foreground")}>{stat.value}</p>
             </div>
           ))}
         </div>

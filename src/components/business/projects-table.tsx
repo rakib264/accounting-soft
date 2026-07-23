@@ -106,6 +106,13 @@ export function ProjectsTable({
         cell: ({ row }) => formatCurrency(row.original.totalInvoiced, currency),
       },
       {
+        accessorKey: "totalVatAmount",
+        header: "Total VAT (preview)",
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">{formatCurrency(row.original.totalVatAmount ?? 0, currency)}</span>
+        ),
+      },
+      {
         accessorKey: "totalExpenses",
         header: "Total Expense",
         cell: ({ row }) => formatCurrency(row.original.totalExpenses, currency),

@@ -97,7 +97,7 @@ async function createProjectInvoice(request: NextRequest, context: RouteContext,
   const vatPercent = settings?.vatPercent ?? 15;
   const subtotal = parsed.data.lineItems.reduce((sum, item) => sum + item.amount, 0);
   const vatAmount = (subtotal * vatPercent) / 100;
-  const total = subtotal + vatAmount;
+  const total = subtotal;
 
   const invoice = await InvoiceModel.create({
     projectId: id,

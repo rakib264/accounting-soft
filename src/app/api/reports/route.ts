@@ -142,7 +142,14 @@ async function getModuleReport(request: NextRequest) {
     Object.keys(dateRange).length
       ? InvoiceModel.aggregate([
           { $match: invoiceQuery },
-          { $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: "$total" },
+              totalVat: { $sum: "$vatAmount" },
+              count: { $sum: 1 },
+            },
+          },
         ])
       : Promise.resolve([]),
     Object.keys(dateRange).length
@@ -156,6 +163,7 @@ async function getModuleReport(request: NextRequest) {
   ]);
 
   const totalInvoiced = filteredInvoices[0]?.total ?? financials.totalInvoiced;
+  const totalVatAmount = filteredInvoices[0]?.totalVat ?? financials.totalVatAmount;
   const totalExpenses = filteredExpenses[0]?.total ?? financials.totalExpenses;
   const invoiceCount = filteredInvoices[0]?.count ?? financials.invoiceCount;
   const expenseCount = filteredExpenses[0]?.count ?? financials.expenseCount;
@@ -165,6 +173,7 @@ async function getModuleReport(request: NextRequest) {
       totalProjects: projectIds.length,
       totalInvoices: invoiceCount,
       totalInvoiceAmount: totalInvoiced,
+      totalVatAmount,
       totalExpenses,
       netProfit: totalInvoiced - totalExpenses,
     },

@@ -21,6 +21,7 @@ export type Project = {
   businessType: "manpower" | "subcontract";
   totalInvoiced: number;
   totalExpenses: number;
+  totalVatAmount?: number;
   invoiceCount?: number;
   expenseCount?: number;
   createdAt: string;
@@ -57,6 +58,7 @@ export type ReportSummary = {
   totalInvoices: number;
   totalRevenue?: number;
   totalInvoiceAmount?: number;
+  totalVatAmount?: number;
   totalExpenses: number;
   netProfit: number;
   tradeCredit?: number;

@@ -56,7 +56,11 @@ async function listProjects(request: NextRequest, _context: RouteContext) {
 
   return ok({
     projects: docs.map((project) => {
-      const financials = financialsMap.get(project._id.toString()) ?? { totalInvoiced: 0, totalExpenses: 0 };
+      const financials = financialsMap.get(project._id.toString()) ?? {
+        totalInvoiced: 0,
+        totalExpenses: 0,
+        totalVatAmount: 0,
+      };
       return {
         id: project._id.toString(),
         name: project.name,
@@ -65,6 +69,7 @@ async function listProjects(request: NextRequest, _context: RouteContext) {
         businessType: project.businessType,
         totalInvoiced: financials.totalInvoiced,
         totalExpenses: financials.totalExpenses,
+        totalVatAmount: financials.totalVatAmount,
         createdAt: project.createdAt,
         updatedAt: project.updatedAt,
       };
@@ -114,6 +119,7 @@ async function createProject(request: NextRequest, _context: RouteContext, authU
       businessType: project.businessType,
       totalInvoiced: 0,
       totalExpenses: 0,
+      totalVatAmount: 0,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
     },

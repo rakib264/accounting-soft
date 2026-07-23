@@ -147,10 +147,17 @@ function CollectiveReportingContent() {
         </div>
       </FilterPanel>
 
-      <div className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard title="Total Projects" value={summary?.totalProjects ?? 0} accent="blue" />
         <StatCard title="Total Invoices" value={summary?.totalInvoices ?? 0} accent="violet" />
         <StatCard title="Total Invoice Amount" value={summary?.totalInvoiceAmount ?? 0} currency={currency} accent="primary" />
+        <StatCard
+          title="Total VAT"
+          value={summary?.totalVatAmount ?? 0}
+          currency={currency}
+          accent="violet"
+          subtitle="Preview only — not added to invoice totals"
+        />
         <StatCard title="Total Expenses" value={summary?.totalExpenses ?? 0} currency={currency} accent="amber" />
         <StatCard title="Net Profit" value={summary?.netProfit ?? 0} currency={currency} accent="primary" />
       </div>

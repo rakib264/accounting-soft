@@ -45,7 +45,7 @@ async function updateInvoice(request: NextRequest, context: RouteContext, authUs
     invoice.vatPercent = vatPercent;
     invoice.vatAmount = (subtotal * vatPercent) / 100;
     invoice.subtotal = subtotal;
-    invoice.total = subtotal + invoice.vatAmount;
+    invoice.total = subtotal;
   }
 
   await invoice.save();

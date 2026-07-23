@@ -58,10 +58,13 @@ export function InvoiceViewDialog({ invoice, currency = "SAR", onOpenChange }: I
 
             <div className="rounded-lg border border-border bg-accent/30 p-4 text-sm">
               <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(invoice.subtotal, currency)}</span></div>
-              <div className="flex justify-between"><span>VAT ({invoice.vatPercent}%)</span><span>{formatCurrency(invoice.vatAmount, currency)}</span></div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>VAT ({invoice.vatPercent}%) — preview only</span>
+                <span>{formatCurrency(invoice.vatAmount, currency)}</span>
+              </div>
               <div className="mt-2 flex justify-between font-semibold text-accent-foreground">
                 <span>Total</span>
-                <span>{formatCurrency(invoice.total, currency)}</span>
+                <span>{formatCurrency(invoice.subtotal, currency)}</span>
               </div>
             </div>
 

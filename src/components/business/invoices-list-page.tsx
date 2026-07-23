@@ -51,8 +51,16 @@ function InvoicesListContent({ businessType, title }: Props) {
       },
       { accessorKey: "lineItemSummary", header: "Line Items" },
       { accessorKey: "subtotal", header: "Subtotal", cell: ({ row }) => formatCurrency(row.original.subtotal, currency) },
-      { accessorKey: "vatAmount", header: "VAT", cell: ({ row }) => formatCurrency(row.original.vatAmount, currency) },
-      { accessorKey: "total", header: "Total", cell: ({ row }) => formatCurrency(row.original.total, currency) },
+      {
+        accessorKey: "vatAmount",
+        header: "VAT (preview)",
+        cell: ({ row }) => formatCurrency(row.original.vatAmount, currency),
+      },
+      {
+        accessorKey: "total",
+        header: "Total",
+        cell: ({ row }) => formatCurrency(row.original.subtotal, currency),
+      },
       {
         id: "actions",
         header: "Actions",
