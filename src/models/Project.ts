@@ -1,7 +1,7 @@
 import mongoose, { HydratedDocument, Model, Schema, Types } from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
 
-type BusinessType = "manpower" | "subcontract";
+type BusinessType = "manpower" | "subcontract" | "trade";
 
 type Project = {
   name: string;
@@ -26,7 +26,7 @@ const projectSchema = new Schema<Project, ProjectModel>(
     imageUrl: { type: String },
     businessType: {
       type: String,
-      enum: ["manpower", "subcontract"] satisfies BusinessType[],
+      enum: ["manpower", "subcontract", "trade"] satisfies BusinessType[],
       required: true,
     },
     createdBy: {

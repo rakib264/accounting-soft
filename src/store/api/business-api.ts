@@ -18,12 +18,16 @@ export type Project = {
   name: string;
   details: string;
   imageUrl?: string;
-  businessType: "manpower" | "subcontract";
+  businessType: "manpower" | "subcontract" | "trade";
   totalInvoiced: number;
   totalExpenses: number;
   totalVatAmount?: number;
+  totalReceived?: number;
+  totalDue?: number;
+  netIncome?: number;
   invoiceCount?: number;
   expenseCount?: number;
+  receivedCount?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -39,6 +43,8 @@ export type Invoice = {
   vatAmount: number;
   subtotal: number;
   total: number;
+  amountReceived?: number;
+  amountDue?: number;
   attachments: string[];
   createdAt: string;
 };
@@ -53,14 +59,34 @@ export type Expense = {
   createdAt: string;
 };
 
+export type ReceivedAmount = {
+  id: string;
+  projectId: string;
+  projectName?: string;
+  businessType?: "manpower" | "subcontract" | "trade";
+  invoiceId: string;
+  invoiceDate?: string;
+  invoiceLabel?: string;
+  invoiceTotal?: number;
+  amount: number;
+  receivedDate?: string | null;
+  invoiceAmountReceived?: number;
+  invoiceAmountDue?: number;
+  createdAt: string;
+  updatedAt?: string;
+};
+
 export type ReportSummary = {
   totalProjects: number;
   totalInvoices: number;
   totalRevenue?: number;
   totalInvoiceAmount?: number;
   totalVatAmount?: number;
+  totalReceived?: number;
+  totalDue?: number;
   totalExpenses: number;
-  netProfit: number;
+  netIncome?: number;
+  netProfit?: number;
   tradeCredit?: number;
   tradeDebit?: number;
 };
@@ -68,12 +94,12 @@ export type ReportSummary = {
 export const businessApi = createApi({
   reducerPath: "businessApi",
   baseQuery: baseQueryWithInterceptors,
-  tagTypes: ["Projects", "Invoices", "Expenses", "Reports"],
+  tagTypes: ["Projects", "Invoices", "Expenses", "ReceivedAmounts", "Reports"],
   endpoints: (builder) => ({
     getProjects: builder.query<
       ApiResponse<{ projects: Project[]; pagination: Pagination }>,
       {
-        businessType?: string;
+        businessType?: "manpower" | "subcontract" | "trade";
         page?: number;
         limit?: number;
         search?: string;
@@ -90,7 +116,7 @@ export const businessApi = createApi({
     }),
     createProject: builder.mutation<
       ApiResponse<{ project: Project }>,
-      { name: string; details: string; imageUrl?: string; businessType: "manpower" | "subcontract" }
+      { name: string; details: string; imageUrl?: string; businessType: "manpower" | "subcontract" | "trade" }
     >({
       query: (body) => ({ url: "/projects", method: "POST", body }),
       invalidatesTags: ["Projects", "Reports"],
@@ -106,7 +132,7 @@ export const businessApi = createApi({
     getInvoices: builder.query<
       ApiResponse<{ invoices: Invoice[]; pagination: Pagination }>,
       {
-        businessType?: string;
+        businessType?: "manpower" | "subcontract" | "trade";
         projectId?: string;
         from?: string;
         to?: string;
@@ -147,8 +173,10 @@ export const businessApi = createApi({
     getExpenses: builder.query<
       ApiResponse<{ expenses: Expense[]; pagination: Pagination }>,
       {
-        businessType?: string;
+        businessType?: "manpower" | "subcontract" | "trade";
         projectId?: string;
+        from?: string;
+        to?: string;
         page?: number;
         limit?: number;
         sortBy?: string;
@@ -189,6 +217,48 @@ export const businessApi = createApi({
       query: (id) => ({ url: `/expenses/${id}`, method: "DELETE" }),
       invalidatesTags: ["Expenses", "Projects", "Reports"],
     }),
+    getProjectReceivedAmounts: builder.query<
+      ApiResponse<{ receivedAmounts: ReceivedAmount[]; pagination: Pagination }>,
+      { projectId: string; invoiceId?: string; page?: number; limit?: number; sortBy?: string; sortOrder?: "asc" | "desc" }
+    >({
+      query: ({ projectId, ...params }) => ({ url: `/projects/${projectId}/received-amounts`, params }),
+      providesTags: ["ReceivedAmounts"],
+    }),
+    getReceivedAmounts: builder.query<
+      ApiResponse<{ receivedAmounts: ReceivedAmount[]; pagination: Pagination }>,
+      {
+        businessType?: "manpower" | "subcontract" | "trade";
+        projectId?: string;
+        invoiceId?: string;
+        from?: string;
+        to?: string;
+        page?: number;
+        limit?: number;
+        sortBy?: string;
+        sortOrder?: "asc" | "desc";
+      }
+    >({
+      query: (params) => ({ url: "/received-amounts", params }),
+      providesTags: ["ReceivedAmounts"],
+    }),
+    createReceivedAmount: builder.mutation<
+      ApiResponse<{ receivedAmount: ReceivedAmount }>,
+      { projectId: string; invoiceId: string; amount: number; receivedDate?: string | null }
+    >({
+      query: ({ projectId, ...body }) => ({ url: `/projects/${projectId}/received-amounts`, method: "POST", body }),
+      invalidatesTags: ["ReceivedAmounts", "Invoices", "Projects", "Reports"],
+    }),
+    updateReceivedAmount: builder.mutation<
+      ApiResponse<{ receivedAmount: ReceivedAmount }>,
+      { id: string; invoiceId?: string; amount?: number; receivedDate?: string | null }
+    >({
+      query: ({ id, ...body }) => ({ url: `/received-amounts/${id}`, method: "PATCH", body }),
+      invalidatesTags: ["ReceivedAmounts", "Invoices", "Projects", "Reports"],
+    }),
+    deleteReceivedAmount: builder.mutation<ApiResponse<{ message: string }>, string>({
+      query: (id) => ({ url: `/received-amounts/${id}`, method: "DELETE" }),
+      invalidatesTags: ["ReceivedAmounts", "Invoices", "Projects", "Reports"],
+    }),
     getDashboardReport: builder.query<
       ApiResponse<{ summary: ReportSummary; monthlyTrend: Array<{ label: string; revenue: number; expenses: number }> }>,
       void
@@ -198,7 +268,7 @@ export const businessApi = createApi({
     }),
     getModuleReport: builder.query<
       ApiResponse<{ summary: ReportSummary }>,
-      { businessType?: string; projectId?: string; from?: string; to?: string }
+      { businessType?: "manpower" | "subcontract" | "trade"; projectId?: string; from?: string; to?: string }
     >({
       query: (params) => ({ url: "/reports", params: { ...params, type: "module" } }),
       providesTags: ["Reports"],
@@ -238,6 +308,11 @@ export const {
   useCreateExpenseMutation,
   useUpdateExpenseMutation,
   useDeleteExpenseMutation,
+  useGetProjectReceivedAmountsQuery,
+  useGetReceivedAmountsQuery,
+  useCreateReceivedAmountMutation,
+  useUpdateReceivedAmountMutation,
+  useDeleteReceivedAmountMutation,
   useGetDashboardReportQuery,
   useGetModuleReportQuery,
   useUploadFilesMutation,

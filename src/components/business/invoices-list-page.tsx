@@ -11,6 +11,7 @@ import { LoadingBlock, PageHeader } from "@/components/shared/page-elements";
 import { TableActions } from "@/components/shared/table-actions";
 import { DataTable } from "@/components/ui/data-table";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { getInvoiceGrossTotal } from "@/lib/invoice-calculations";
 import { useGetInvoicesQuery } from "@/store/api/business-api";
 import { useGetInvoiceConfigQuery } from "@/store/api/settings-api";
 import { Invoice } from "@/store/api/business-api";
@@ -51,16 +52,8 @@ function InvoicesListContent({ businessType, title }: Props) {
       },
       { accessorKey: "lineItemSummary", header: "Line Items" },
       { accessorKey: "subtotal", header: "Subtotal", cell: ({ row }) => formatCurrency(row.original.subtotal, currency) },
-      {
-        accessorKey: "vatAmount",
-        header: "VAT (preview)",
-        cell: ({ row }) => formatCurrency(row.original.vatAmount, currency),
-      },
-      {
-        accessorKey: "total",
-        header: "Total",
-        cell: ({ row }) => formatCurrency(row.original.subtotal, currency),
-      },
+      { accessorKey: "vatAmount", header: "VAT", cell: ({ row }) => formatCurrency(row.original.vatAmount, currency) },
+      { accessorKey: "total", header: "Total (incl. VAT)", cell: ({ row }) => formatCurrency(getInvoiceGrossTotal(row.original), currency) },
       {
         id: "actions",
         header: "Actions",

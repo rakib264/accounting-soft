@@ -6,6 +6,8 @@ import { asPaginateResult } from "@/lib/api/paginate-result";
 import { fail, ok } from "@/lib/api/response";
 import { withRouteGuard } from "@/lib/api/route-guard";
 import { connectToDatabase } from "@/lib/db";
+import { getInvoiceGrossTotal, getInvoiceAmountDue, normalizeInvoiceAmounts } from "@/lib/api/invoice-totals";
+import { getInvoiceReceivedTotalsMap } from "@/lib/api/received-amount";
 import { createInvoiceSchema } from "@/lib/validation/project";
 import { InvoiceModel } from "@/models/Invoice";
 import { ProjectModel } from "@/models/Project";
@@ -16,19 +18,25 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-function serializeInvoice(invoice: {
-  _id: { toString(): string };
-  projectId: { toString(): string };
-  lineItems: Array<{ label: string; amount: number }>;
-  invoiceDate: Date;
-  vatPercent: number;
-  vatAmount: number;
-  subtotal: number;
-  total: number;
-  attachments: string[];
-  createdAt: Date;
-  updatedAt: Date;
-}) {
+function serializeInvoice(
+  invoice: {
+    _id: { toString(): string };
+    projectId: { toString(): string };
+    lineItems: Array<{ label: string; amount: number }>;
+    invoiceDate: Date;
+    vatPercent: number;
+    vatAmount: number;
+    subtotal: number;
+    total: number;
+    attachments: string[];
+    createdAt: Date;
+    updatedAt: Date;
+  },
+  amountReceived = 0,
+) {
+  const normalized = normalizeInvoiceAmounts(invoice);
+  const grossTotal = normalized.total;
+
   return {
     id: invoice._id.toString(),
     projectId: invoice.projectId.toString(),
@@ -37,7 +45,9 @@ function serializeInvoice(invoice: {
     vatPercent: invoice.vatPercent,
     vatAmount: invoice.vatAmount,
     subtotal: invoice.subtotal,
-    total: invoice.total,
+    total: grossTotal,
+    amountReceived,
+    amountDue: getInvoiceAmountDue(invoice, amountReceived),
     attachments: invoice.attachments,
     lineItemSummary: invoice.lineItems.map((item) => item.label).join(", "),
     createdAt: invoice.createdAt,
@@ -67,9 +77,10 @@ async function listProjectInvoices(request: NextRequest, context: RouteContext) 
   );
 
   const docs = result.docs;
+  const receivedMap = await getInvoiceReceivedTotalsMap(id);
 
   return ok({
-    invoices: docs.map(serializeInvoice),
+    invoices: docs.map((invoice) => serializeInvoice(invoice, receivedMap.get(invoice._id.toString()) ?? 0)),
     pagination: {
       page: result.page,
       limit: result.limit,
@@ -97,7 +108,7 @@ async function createProjectInvoice(request: NextRequest, context: RouteContext,
   const vatPercent = settings?.vatPercent ?? 15;
   const subtotal = parsed.data.lineItems.reduce((sum, item) => sum + item.amount, 0);
   const vatAmount = (subtotal * vatPercent) / 100;
-  const total = subtotal;
+  const total = subtotal + vatAmount;
 
   const invoice = await InvoiceModel.create({
     projectId: id,

@@ -14,7 +14,7 @@ import { AuthUser } from "@/types/auth";
 
 type RouteContext = EmptyRouteContext;
 
-async function listProjects(request: NextRequest, _context: RouteContext) {
+async function listProjects(request: NextRequest) {
   await connectToDatabase();
 
   const searchParams = request.nextUrl.searchParams;
@@ -23,7 +23,7 @@ async function listProjects(request: NextRequest, _context: RouteContext) {
 
   const query: Record<string, unknown> = {};
 
-  if (businessType === "manpower" || businessType === "subcontract") {
+  if (businessType === "manpower" || businessType === "subcontract" || businessType === "trade") {
     query.businessType = businessType;
   }
 
@@ -60,6 +60,9 @@ async function listProjects(request: NextRequest, _context: RouteContext) {
         totalInvoiced: 0,
         totalExpenses: 0,
         totalVatAmount: 0,
+        totalReceived: 0,
+        totalDue: 0,
+        netIncome: 0,
       };
       return {
         id: project._id.toString(),
@@ -70,6 +73,9 @@ async function listProjects(request: NextRequest, _context: RouteContext) {
         totalInvoiced: financials.totalInvoiced,
         totalExpenses: financials.totalExpenses,
         totalVatAmount: financials.totalVatAmount,
+        totalReceived: financials.totalReceived,
+        totalDue: financials.totalDue,
+        netIncome: financials.netIncome,
         createdAt: project.createdAt,
         updatedAt: project.updatedAt,
       };
@@ -120,6 +126,9 @@ async function createProject(request: NextRequest, _context: RouteContext, authU
       totalInvoiced: 0,
       totalExpenses: 0,
       totalVatAmount: 0,
+      totalReceived: 0,
+      totalDue: 0,
+      netIncome: 0,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
     },

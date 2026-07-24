@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server";
-import { EmptyRouteContext } from "@/lib/api/route-context";
 
 import { buildSortObject, parsePaginationParams } from "@/lib/api/pagination";
 import { asPaginateResult } from "@/lib/api/paginate-result";
@@ -9,23 +8,35 @@ import { connectToDatabase } from "@/lib/db";
 import { ExpenseModel } from "@/models/Expense";
 import { ProjectModel } from "@/models/Project";
 
-type RouteContext = EmptyRouteContext;
-
 async function listAllExpenses(request: NextRequest) {
   await connectToDatabase();
 
   const searchParams = request.nextUrl.searchParams;
   const businessType = searchParams.get("businessType");
   const projectId = searchParams.get("projectId");
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
   const pagination = parsePaginationParams(request);
 
   const query: Record<string, unknown> = {};
 
   if (projectId) {
     query.projectId = projectId;
-  } else if (businessType === "manpower" || businessType === "subcontract") {
+  } else if (businessType === "manpower" || businessType === "subcontract" || businessType === "trade") {
     const projects = await ProjectModel.find({ businessType }).select("_id").lean();
     query.projectId = { $in: projects.map((p) => p._id) };
+  }
+
+  const dateRange =
+    from || to
+      ? {
+          ...(from ? { $gte: new Date(from) } : {}),
+          ...(to ? { $lte: new Date(to) } : {}),
+        }
+      : null;
+
+  if (dateRange) {
+    query.entries = { $elemMatch: { date: dateRange } };
   }
 
   const result = asPaginateResult<{

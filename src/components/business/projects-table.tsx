@@ -102,12 +102,22 @@ export function ProjectsTable({
       },
       {
         accessorKey: "totalInvoiced",
-        header: "Total Invoiced",
+        header: "Invoiced (incl. VAT)",
         cell: ({ row }) => formatCurrency(row.original.totalInvoiced, currency),
       },
       {
+        accessorKey: "totalReceived",
+        header: "Total Received",
+        cell: ({ row }) => formatCurrency(row.original.totalReceived ?? 0, currency),
+      },
+      {
+        accessorKey: "totalDue",
+        header: "Total Due",
+        cell: ({ row }) => formatCurrency(row.original.totalDue ?? 0, currency),
+      },
+      {
         accessorKey: "totalVatAmount",
-        header: "Total VAT (preview)",
+        header: "Total VAT",
         cell: ({ row }) => (
           <span className="text-muted-foreground">{formatCurrency(row.original.totalVatAmount ?? 0, currency)}</span>
         ),
@@ -116,6 +126,11 @@ export function ProjectsTable({
         accessorKey: "totalExpenses",
         header: "Total Expense",
         cell: ({ row }) => formatCurrency(row.original.totalExpenses, currency),
+      },
+      {
+        accessorKey: "netIncome",
+        header: "Net Income",
+        cell: ({ row }) => formatCurrency(row.original.netIncome ?? 0, currency),
       },
       {
         accessorKey: "createdAt",

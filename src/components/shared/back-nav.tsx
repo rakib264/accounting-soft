@@ -24,10 +24,13 @@ export function BackNav({ href, label, className }: BackNavProps) {
   );
 }
 
-export function businessSectionLabel(businessType: "manpower" | "subcontract") {
-  return businessType === "manpower" ? "Man-power" : "Sub-contract";
+export function businessSectionLabel(businessType: "manpower" | "subcontract" | "trade") {
+  if (businessType === "manpower") return "Man-power";
+  if (businessType === "subcontract") return "Sub-contract";
+  return "Trade";
 }
 
-export function businessSectionPath(businessType: "manpower" | "subcontract") {
+export function businessSectionPath(businessType: "manpower" | "subcontract" | "trade") {
+  if (businessType === "trade") return "/trade";
   return `/manpower-subcontract/${businessType}`;
 }

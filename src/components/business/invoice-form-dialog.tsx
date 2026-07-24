@@ -69,6 +69,7 @@ export function InvoiceFormDialog({ open, onOpenChange, projectId, invoice, onSu
   const { errors, isSubmitting } = form.formState;
   const subtotal = lineItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const vatAmount = (subtotal * vatPercent) / 100;
+  const total = subtotal + vatAmount;
   const loading = creating || updating || isSubmitting;
 
   useEffect(() => {
@@ -205,11 +206,8 @@ export function InvoiceFormDialog({ open, onOpenChange, projectId, invoice, onSu
 
           <div className="rounded-lg border border-border bg-accent/40 p-4 text-sm">
             <div className="flex justify-between"><span>Subtotal</span><span>{subtotal.toFixed(2)} {currency}</span></div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>VAT ({vatPercent}%) — preview only</span>
-              <span>{vatAmount.toFixed(2)} {currency}</span>
-            </div>
-            <div className="mt-2 flex justify-between font-semibold text-accent-foreground"><span>Total</span><span>{subtotal.toFixed(2)} {currency}</span></div>
+            <div className="flex justify-between"><span>VAT ({vatPercent}%)</span><span>{vatAmount.toFixed(2)} {currency}</span></div>
+            <div className="mt-2 flex justify-between font-semibold text-accent-foreground"><span>Total</span><span>{total.toFixed(2)} {currency}</span></div>
           </div>
 
           <FormField label="Attachments" error={fileError} hint="Optional. Images, PDF, or DOC up to 10MB each.">

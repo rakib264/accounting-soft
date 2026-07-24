@@ -4,10 +4,12 @@ import { SortingState } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 
 import { PermissionGate } from "@/components/auth/permission-gate";
+import { ModuleSummaryCards } from "@/components/business/module-summary-cards";
 import { ProjectsTable } from "@/components/business/projects-table";
+import { ReportExportButton } from "@/components/business/report-export-button";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import { FilterPanel } from "@/components/shared/filter-panel";
-import { PageHeader, StatCard, FilterPill } from "@/components/shared/page-elements";
+import { PageHeader, FilterPill } from "@/components/shared/page-elements";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useAppliedFilters } from "@/hooks/use-applied-filters";
@@ -87,7 +89,18 @@ function CollectiveReportingContent() {
 
   return (
     <div>
-      <PageHeader title="Collective Reporting" description="Combined view of Man-power and Sub-contract operations." />
+      <PageHeader
+        title="Collective Reporting"
+        description="Combined view of Man-power and Sub-contract operations."
+        actions={
+          <ReportExportButton
+            businessType={applied.businessType || undefined}
+            projectId={applied.projectId || undefined}
+            from={applied.from || undefined}
+            to={applied.to || undefined}
+          />
+        }
+      />
 
       <FilterPanel className="mb-6" onApply={handleApply} onReset={handleReset} isApplying={reportLoading}>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -147,20 +160,7 @@ function CollectiveReportingContent() {
         </div>
       </FilterPanel>
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard title="Total Projects" value={summary?.totalProjects ?? 0} accent="blue" />
-        <StatCard title="Total Invoices" value={summary?.totalInvoices ?? 0} accent="violet" />
-        <StatCard title="Total Invoice Amount" value={summary?.totalInvoiceAmount ?? 0} currency={currency} accent="primary" />
-        <StatCard
-          title="Total VAT"
-          value={summary?.totalVatAmount ?? 0}
-          currency={currency}
-          accent="violet"
-          subtitle="Preview only — not added to invoice totals"
-        />
-        <StatCard title="Total Expenses" value={summary?.totalExpenses ?? 0} currency={currency} accent="amber" />
-        <StatCard title="Net Profit" value={summary?.netProfit ?? 0} currency={currency} accent="primary" />
-      </div>
+      <ModuleSummaryCards summary={summary} currency={currency} />
 
       <div className="space-y-4">
         <h2 className="text-xl font-bold tracking-tight text-foreground">Projects Overview</h2>

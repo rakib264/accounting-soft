@@ -1,41 +1,52 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { ColumnDef, SortingState } from "@tanstack/react-table";
+import { useMemo, useState } from "react";
 
 import { PermissionGate } from "@/components/auth/permission-gate";
+import { ExpenseFormDialog } from "@/components/business/expense-form-dialog";
+import { ExpenseViewDialog } from "@/components/business/expense-view-dialog";
+import { InvoiceFormDialog } from "@/components/business/invoice-form-dialog";
+import { InvoiceViewDialog } from "@/components/business/invoice-view-dialog";
+import { ReceivedAmountFormDialog } from "@/components/business/received-amount-form-dialog";
+import { ReceivedAmountViewDialog } from "@/components/business/received-amount-view-dialog";
+import { ReportExportButton } from "@/components/business/report-export-button";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
-import { FileUpload } from "@/components/shared/file-upload";
 import { FilterPanel } from "@/components/shared/filter-panel";
-import { LoadingBlock, PageHeader, StatCard } from "@/components/shared/page-elements";
+import { PageHeader, StatCard } from "@/components/shared/page-elements";
+import { TableActions } from "@/components/shared/table-actions";
+import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { FormField } from "@/components/ui/form-field";
-import { Input } from "@/components/ui/input";
-import { SubmitButton } from "@/components/ui/submit-button";
-import { SimpleTooltip, TooltipProvider } from "@/components/ui/tooltip";
 import { DataTable } from "@/components/ui/data-table";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppliedFilters } from "@/hooks/use-applied-filters";
-import { validateTradeFiles } from "@/lib/file-validation-client";
-import { formatCurrency, formatDate } from "@/lib/format";
-import { showSuccess } from "@/lib/toast";
+import { usePermission } from "@/hooks/use-permission";
+import { getInvoiceAmountDue, getInvoiceGrossTotal } from "@/lib/invoice-calculations";
+import { formatCurrency, formatDate, formatOptionalDate } from "@/lib/format";
+import { showSuccess, showWarning } from "@/lib/toast";
 import {
-  useCommitTradeTransactionsMutation,
-  useGetTradeTransactionsQuery,
-  useParseTradeFilesMutation,
-} from "@/store/api/trade-api";
-import { ColumnDef } from "@tanstack/react-table";
+  Expense,
+  Invoice,
+  ReceivedAmount,
+  useCreateProjectMutation,
+  useDeleteExpenseMutation,
+  useDeleteInvoiceMutation,
+  useDeleteReceivedAmountMutation,
+  useGetExpensesQuery,
+  useGetInvoicesQuery,
+  useGetModuleReportQuery,
+  useGetProjectsQuery,
+  useGetReceivedAmountsQuery,
+} from "@/store/api/business-api";
+import { useGetInvoiceConfigQuery } from "@/store/api/settings-api";
 
-type PreviewRow = {
-  id: string;
-  sourceFile: string;
-  date: string;
-  description: string;
-  debit: number;
-  credit: number;
-  balance: number;
-  reference?: string;
+type TradeFilters = {
+  from: string;
+  to: string;
 };
+
+const INITIAL_TRADE_FILTERS: TradeFilters = { from: "", to: "" };
 
 export default function TradePage() {
   return (
@@ -45,284 +56,558 @@ export default function TradePage() {
   );
 }
 
-type TradeDateFilters = { from: string; to: string };
-
-const INITIAL_TRADE_FILTERS: TradeDateFilters = { from: "", to: "" };
-
 function TradePageContent() {
-  const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
-  const [fileError, setFileError] = useState<string>();
-  const { draft, applied, apply, reset, patchDraft } = useAppliedFilters<TradeDateFilters>(INITIAL_TRADE_FILTERS);
-  const [pageIndex, setPageIndex] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
+  const canCreate = usePermission("trade", "create");
+  const canEdit = usePermission("trade", "edit");
+  const canDelete = usePermission("trade", "delete");
 
-  const [parseFiles, { isLoading: parsing }] = useParseTradeFilesMutation();
-  const [commitTransactions, { isLoading: committing }] = useCommitTradeTransactionsMutation();
-  const { data, isLoading, refetch } = useGetTradeTransactionsQuery({
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [receivedOpen, setReceivedOpen] = useState(false);
+  const [expenseOpen, setExpenseOpen] = useState(false);
+
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [editingReceived, setEditingReceived] = useState<ReceivedAmount | null>(null);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [viewingReceived, setViewingReceived] = useState<ReceivedAmount | null>(null);
+  const [viewingExpense, setViewingExpense] = useState<Expense | null>(null);
+
+  const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null);
+  const [deletingReceived, setDeletingReceived] = useState<ReceivedAmount | null>(null);
+  const [deletingExpense, setDeletingExpense] = useState<Expense | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const [invoicePage, setInvoicePage] = useState(0);
+  const [receivedPage, setReceivedPage] = useState(0);
+  const [expensePage, setExpensePage] = useState(0);
+  const [invoicePageSize, setInvoicePageSize] = useState(10);
+  const [receivedPageSize, setReceivedPageSize] = useState(10);
+  const [expensePageSize, setExpensePageSize] = useState(10);
+  const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([{ id: "invoiceDate", desc: true }]);
+  const [receivedSorting, setReceivedSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
+  const [expenseSorting, setExpenseSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+
+  const { draft, applied, apply, reset, patchDraft } = useAppliedFilters<TradeFilters>(INITIAL_TRADE_FILTERS);
+
+  const invoiceSort = invoiceSorting[0];
+  const receivedSort = receivedSorting[0];
+  const expenseSort = expenseSorting[0];
+
+  const { data: configData } = useGetInvoiceConfigQuery();
+  const currency = configData?.data.currency ?? "SAR";
+
+  const { data: defaultProjectData, isLoading: projectLookupLoading } = useGetProjectsQuery({
+    businessType: "trade",
+    page: 1,
+    limit: 1,
+  });
+  const defaultTradeProjectId = defaultProjectData?.data.projects[0]?.id;
+
+  const { data: reportData, isLoading: reportLoading } = useGetModuleReportQuery({
+    businessType: "trade",
     from: applied.from || undefined,
     to: applied.to || undefined,
-    page: pageIndex + 1,
-    limit: pageSize,
   });
 
-  async function handleParse(fileList: File[]) {
-    const validation = validateTradeFiles(fileList);
-    if (!validation.valid) {
-      setFileError(validation.message);
-      return;
-    }
+  const { data: invoicesData, isLoading: invoicesLoading } = useGetInvoicesQuery({
+    businessType: "trade",
+    from: applied.from || undefined,
+    to: applied.to || undefined,
+    page: invoicePage + 1,
+    limit: invoicePageSize,
+    sortBy: invoiceSort?.id,
+    sortOrder: invoiceSort?.desc ? "desc" : "asc",
+  });
 
-    setFileError(undefined);
+  const { data: receivedData, isLoading: receivedLoading } = useGetReceivedAmountsQuery({
+    businessType: "trade",
+    from: applied.from || undefined,
+    to: applied.to || undefined,
+    page: receivedPage + 1,
+    limit: receivedPageSize,
+    sortBy: receivedSort?.id,
+    sortOrder: receivedSort?.desc ? "desc" : "asc",
+  });
 
+  const { data: expensesData, isLoading: expensesLoading } = useGetExpensesQuery({
+    businessType: "trade",
+    from: applied.from || undefined,
+    to: applied.to || undefined,
+    page: expensePage + 1,
+    limit: expensePageSize,
+    sortBy: expenseSort?.id,
+    sortOrder: expenseSort?.desc ? "desc" : "asc",
+  });
+
+  const [deleteInvoice] = useDeleteInvoiceMutation();
+  const [deleteReceived] = useDeleteReceivedAmountMutation();
+  const [deleteExpense] = useDeleteExpenseMutation();
+  const [createProject, { isLoading: creatingDefaultProject }] = useCreateProjectMutation();
+
+  async function confirmDeleteInvoice() {
+    if (!deletingInvoice) return;
+    setDeleteLoading(true);
     try {
-      const result = await parseFiles(fileList).unwrap();
-      const rows: PreviewRow[] = result.data.files.flatMap((file) =>
-        file.transactions.map((tx, index) => ({
-          id: `${file.fileName}-${index}`,
-          sourceFile: file.fileName,
-          date: typeof tx.date === "string" ? tx.date.slice(0, 10) : new Date(tx.date).toISOString().slice(0, 10),
-          description: tx.description,
-          debit: tx.debit,
-          credit: tx.credit,
-          balance: tx.balance,
-          reference: tx.reference,
-        })),
-      );
-      setPreviewRows(rows);
-      showSuccess("Files parsed — review and correct rows before saving.");
+      await deleteInvoice(deletingInvoice.id).unwrap();
+      setDeletingInvoice(null);
+      showSuccess("Invoice deleted successfully.");
     } catch {
-      /* RTK error toast */
+      /* RTK handles error toast */
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
-  const onDrop = useCallback(
-    (files: File[]) => {
-      if (files.length > 0) {
-        void handleParse(files);
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+  async function confirmDeleteReceived() {
+    if (!deletingReceived) return;
+    setDeleteLoading(true);
+    try {
+      await deleteReceived(deletingReceived.id).unwrap();
+      setDeletingReceived(null);
+      showSuccess("Received amount deleted successfully.");
+    } catch {
+      /* RTK handles error toast */
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
+  async function confirmDeleteExpense() {
+    if (!deletingExpense) return;
+    setDeleteLoading(true);
+    try {
+      await deleteExpense(deletingExpense.id).unwrap();
+      setDeletingExpense(null);
+      showSuccess("Expense deleted successfully.");
+    } catch {
+      /* RTK handles error toast */
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
+  async function resolveTradeProjectId() {
+    if (defaultTradeProjectId) return defaultTradeProjectId;
+
+    try {
+      const created = await createProject({
+        name: "Trade Ledger",
+        details: "Default trade workspace for invoices, received amounts, and expenses.",
+        businessType: "trade",
+      }).unwrap();
+      return created.data.project.id;
+    } catch {
+      showWarning("Unable to prepare trade workspace automatically. Please contact admin.");
+      return null;
+    }
+  }
+
+  async function openCreateDialog(dialog: "invoice" | "received" | "expense") {
+    const projectId = await resolveTradeProjectId();
+    if (!projectId) return;
+
+    setActiveProjectId(projectId);
+    if (dialog === "invoice") setInvoiceOpen(true);
+    if (dialog === "received") setReceivedOpen(true);
+    if (dialog === "expense") setExpenseOpen(true);
+  }
+
+  const invoiceColumns = useMemo<ColumnDef<Invoice>[]>(
+    () => [
+      { accessorKey: "invoiceDate", header: "Date", cell: ({ row }) => formatDate(row.original.invoiceDate) },
+      { accessorKey: "lineItemSummary", header: "Line Items" },
+      { accessorKey: "subtotal", header: "Subtotal", cell: ({ row }) => formatCurrency(row.original.subtotal, currency) },
+      { accessorKey: "vatAmount", header: "VAT", cell: ({ row }) => formatCurrency(row.original.vatAmount, currency) },
+      {
+        accessorKey: "total",
+        header: "Total (incl. VAT)",
+        cell: ({ row }) => formatCurrency(getInvoiceGrossTotal(row.original), currency),
+      },
+      {
+        accessorKey: "amountReceived",
+        header: "Received",
+        cell: ({ row }) => formatCurrency(row.original.amountReceived ?? 0, currency),
+      },
+      {
+        accessorKey: "amountDue",
+        header: "Due",
+        cell: ({ row }) =>
+          formatCurrency(
+            row.original.amountDue ?? getInvoiceAmountDue(row.original, row.original.amountReceived ?? 0),
+            currency,
+          ),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <TableActions
+            canView
+            canEdit={canEdit}
+            canDelete={canDelete}
+            onView={() => setViewingInvoice(row.original)}
+            onEdit={() => setEditingInvoice(row.original)}
+            onDelete={() => setDeletingInvoice(row.original)}
+            viewLabel="View invoice"
+            editLabel="Edit invoice"
+            deleteLabel="Delete invoice"
+          />
+        ),
+      },
+    ],
+    [canDelete, canEdit, currency],
   );
 
-  function updatePreviewRow(id: string, field: keyof PreviewRow, value: string | number) {
-    setPreviewRows((rows) => rows.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
-  }
+  const receivedColumns = useMemo<ColumnDef<ReceivedAmount>[]>(
+    () => [
+      {
+        accessorKey: "invoiceLabel",
+        header: "Invoice",
+        cell: ({ row }) => (
+          <div>
+            <p className="font-medium text-foreground">{row.original.invoiceLabel ?? "—"}</p>
+            <p className="text-xs text-muted-foreground">
+              {row.original.invoiceDate ? formatDate(row.original.invoiceDate) : "—"}
+            </p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "amount",
+        header: "Received",
+        cell: ({ row }) => formatCurrency(row.original.amount, currency),
+      },
+      {
+        accessorKey: "receivedDate",
+        header: "Received Date",
+        cell: ({ row }) => formatOptionalDate(row.original.receivedDate),
+      },
+      {
+        accessorKey: "invoiceAmountDue",
+        header: "Balance Due",
+        cell: ({ row }) => formatCurrency(row.original.invoiceAmountDue ?? 0, currency),
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Recorded",
+        cell: ({ row }) => formatDate(row.original.createdAt),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <TableActions
+            canView
+            canEdit={canEdit}
+            canDelete={canDelete}
+            onView={() => setViewingReceived(row.original)}
+            onEdit={() => setEditingReceived(row.original)}
+            onDelete={() => setDeletingReceived(row.original)}
+            viewLabel="View received amount"
+            editLabel="Edit received amount"
+            deleteLabel="Delete received amount"
+          />
+        ),
+      },
+    ],
+    [canDelete, canEdit, currency],
+  );
 
-  function removePreviewRow(id: string) {
-    setPreviewRows((rows) => rows.filter((row) => row.id !== id));
-  }
+  const expenseColumns = useMemo<ColumnDef<Expense>[]>(
+    () => [
+      { accessorKey: "labelSummary", header: "Labels" },
+      {
+        accessorKey: "totalAmount",
+        header: "Total Amount",
+        cell: ({ row }) => formatCurrency(row.original.totalAmount ?? 0, currency),
+      },
+      { id: "entries", header: "Entries", cell: ({ row }) => row.original.entries.length },
+      { accessorKey: "createdAt", header: "Created", cell: ({ row }) => formatDate(row.original.createdAt) },
+      {
+        id: "actions",
+        header: "Actions",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <TableActions
+            canView
+            canEdit={canEdit}
+            canDelete={canDelete}
+            onView={() => setViewingExpense(row.original)}
+            onEdit={() => setEditingExpense(row.original)}
+            onDelete={() => setDeletingExpense(row.original)}
+            viewLabel="View expense"
+            editLabel="Edit expense"
+            deleteLabel="Delete expense"
+          />
+        ),
+      },
+    ],
+    [canDelete, canEdit, currency],
+  );
 
-  async function handleCommit() {
-    if (previewRows.length === 0) return;
-
-    try {
-      const grouped = previewRows.reduce<Record<string, PreviewRow[]>>((acc, row) => {
-        acc[row.sourceFile] = acc[row.sourceFile] ?? [];
-        acc[row.sourceFile].push(row);
-        return acc;
-      }, {});
-
-      for (const [sourceFile, transactions] of Object.entries(grouped)) {
-        await commitTransactions({
-          sourceFile,
-          transactions: transactions.map(({ sourceFile: _source, id: _id, ...tx }) => ({
-            ...tx,
-            date: tx.date,
-          })),
-        }).unwrap();
-      }
-
-      setPreviewRows([]);
-      refetch();
-      showSuccess("Trade transactions saved successfully.");
-    } catch {
-      /* Keep preview rows on error */
-    }
-  }
-
-  const previewColumns: ColumnDef<PreviewRow>[] = [
-    { accessorKey: "sourceFile", header: "Source" },
-    {
-      accessorKey: "date",
-      header: "Date",
-      cell: ({ row }) => (
-        <Input
-          type="date"
-          value={row.original.date}
-          onChange={(event) => updatePreviewRow(row.original.id, "date", event.target.value)}
-          className="min-w-[140px]"
-        />
-      ),
-    },
-    {
-      accessorKey: "description",
-      header: "Description",
-      cell: ({ row }) => (
-        <Input
-          value={row.original.description}
-          onChange={(event) => updatePreviewRow(row.original.id, "description", event.target.value)}
-        />
-      ),
-    },
-    {
-      accessorKey: "debit",
-      header: "Debit",
-      cell: ({ row }) => (
-        <Input
-          type="number"
-          step="0.01"
-          value={row.original.debit}
-          onChange={(event) => updatePreviewRow(row.original.id, "debit", Number(event.target.value))}
-          className="min-w-[100px]"
-        />
-      ),
-    },
-    {
-      accessorKey: "credit",
-      header: "Credit",
-      cell: ({ row }) => (
-        <Input
-          type="number"
-          step="0.01"
-          value={row.original.credit}
-          onChange={(event) => updatePreviewRow(row.original.id, "credit", Number(event.target.value))}
-          className="min-w-[100px]"
-        />
-      ),
-    },
-    {
-      accessorKey: "balance",
-      header: "Balance",
-      cell: ({ row }) => (
-        <Input
-          type="number"
-          step="0.01"
-          value={row.original.balance}
-          onChange={(event) => updatePreviewRow(row.original.id, "balance", Number(event.target.value))}
-          className="min-w-[100px]"
-        />
-      ),
-    },
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <TooltipProvider delayDuration={200}>
-          <SimpleTooltip label="Remove row">
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-              onClick={() => removePreviewRow(row.original.id)}
-              disabled={previewRows.length <= 1}
-            >
-              <Trash2 className="h-4 w-4" />
-              <span className="sr-only">Remove row</span>
-            </Button>
-          </SimpleTooltip>
-        </TooltipProvider>
-      ),
-    },
-  ];
-
-  const transactionColumns: ColumnDef<(typeof transactions)[number]>[] = [
-    { accessorKey: "date", header: "Date", cell: ({ row }) => formatDate(row.original.date) },
-    { accessorKey: "description", header: "Description" },
-    { accessorKey: "debit", header: "Debit", cell: ({ row }) => formatCurrency(row.original.debit, "SAR") },
-    { accessorKey: "credit", header: "Credit", cell: ({ row }) => formatCurrency(row.original.credit, "SAR") },
-    { accessorKey: "balance", header: "Balance", cell: ({ row }) => formatCurrency(row.original.balance, "SAR") },
-    { accessorKey: "reference", header: "Reference", cell: ({ row }) => row.original.reference ?? "—" },
-    { accessorKey: "sourceFile", header: "Source File" },
-  ];
-
-  const transactions = data?.data.transactions ?? [];
-  const pagination = data?.data.pagination;
+  const summary = reportData?.data.summary;
+  const totalReceivedEntries = receivedData?.data.pagination.totalDocs ?? 0;
 
   return (
     <div>
-      <PageHeader title="Trade" description="Upload bank statements and review parsed transactions." />
-
-      <div className="mb-8 grid gap-4 md:grid-cols-3">
-        <StatCard title="Total Credit" value={data?.data.summary.totalCredit ?? 0} currency="SAR" />
-        <StatCard title="Total Debit" value={data?.data.summary.totalDebit ?? 0} currency="SAR" />
-        <StatCard title="Net Balance" value={data?.data.summary.netBalance ?? 0} currency="SAR" />
-      </div>
-
-      <div className="mb-8 rounded-xl border border-border bg-card p-6 shadow-sm">
-        <FormField label="Statement files" error={fileError} hint="PDF, CSV, or XLSX up to 10MB each.">
-            <FileUpload
-              onSelect={onDrop}
-            validateFiles={validateTradeFiles}
-            onValidationError={setFileError}
-            error={fileError}
-              accept=".pdf,.csv,.xlsx,.xls"
-            disabled={parsing}
-            dropzoneLabel="Drag & drop bank statements here"
-            dropzoneHint="or click to browse — PDF, CSV, or Excel up to 10MB"
-          />
-        </FormField>
-        <div className="mt-4 flex justify-center gap-2">
-          {previewRows.length > 0 && (
-            <SubmitButton type="button" onClick={handleCommit} loading={committing} loadingText="Saving...">
-              Commit to Database
-            </SubmitButton>
-          )}
-          {parsing && <span className="text-sm text-muted-foreground">Parsing...</span>}
-        </div>
-      </div>
-
-      {previewRows.length > 0 && (
-        <div className="mb-8">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">Preview &amp; Confirm ({previewRows.length} rows)</h2>
-          <DataTable columns={previewColumns} data={previewRows} emptyMessage="No preview rows." enableColumnVisibility={false} />
-        </div>
-      )}
-
-      <div className="mb-6">
-        <h2 className="mb-4 text-lg font-semibold text-foreground">Transaction history</h2>
-        <FilterPanel
-          className="mb-4"
-          onApply={() => {
-            apply();
-            setPageIndex(0);
-          }}
-          onReset={() => {
-            reset();
-            setPageIndex(0);
-          }}
-          isApplying={isLoading}
-        >
-          <div className="max-w-md space-y-2">
-            <Label htmlFor="trade-date-range">Date range</Label>
-            <DateRangePicker
-              id="trade-date-range"
-              value={{ from: draft.from, to: draft.to }}
-              onChange={(range) => patchDraft({ from: range.from, to: range.to })}
-              placeholder="All dates"
+      <PageHeader
+        title="Trade"
+        description="Trade financial dashboard with invoices, received amounts, and expenses."
+        actions={
+          <div className="w-full sm:w-auto">
+            <ReportExportButton
+              businessType="trade"
+              from={applied.from || undefined}
+              to={applied.to || undefined}
+              label="Download Trade Report"
+              className="w-full sm:w-auto"
             />
           </div>
-        </FilterPanel>
+        }
+      />
+
+      <FilterPanel
+        className="mb-6"
+        onApply={() => {
+          apply();
+          setInvoicePage(0);
+          setReceivedPage(0);
+          setExpensePage(0);
+        }}
+        onReset={() => {
+          reset();
+          setInvoicePage(0);
+          setReceivedPage(0);
+          setExpensePage(0);
+        }}
+        isApplying={reportLoading || projectLookupLoading}
+      >
+        <div className="max-w-md space-y-2">
+          <Label htmlFor="trade-date-range">Date range</Label>
+          <DateRangePicker
+            id="trade-date-range"
+            value={{ from: draft.from, to: draft.to }}
+            onChange={(range) => patchDraft({ from: range.from, to: range.to })}
+            placeholder="All dates"
+          />
+        </div>
+      </FilterPanel>
+
+      <div className="mb-8 grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-3 sm:gap-4">
+        <StatCard title="Total Invoice Entries" value={summary?.totalInvoices ?? 0} accent="violet" />
+        <StatCard
+          title="Total Invoice Amount (incl. VAT)"
+          value={summary?.totalInvoiceAmount ?? 0}
+          currency={currency}
+          accent="primary"
+        />
+        <StatCard title="Total Received Amount" value={summary?.totalReceived ?? 0} currency={currency} accent="blue" />
+        <StatCard title="Total Received Entries" value={totalReceivedEntries} accent="blue" />
+        <StatCard title="Total Expense" value={summary?.totalExpenses ?? 0} currency={currency} accent="amber" />
+        <StatCard title="Total VAT" value={summary?.totalVatAmount ?? 0} currency={currency} accent="violet" />
+        <StatCard title="Total Due" value={summary?.totalDue ?? 0} currency={currency} accent="amber" />
+        <StatCard title="Total Net Income" value={summary?.netIncome ?? 0} currency={currency} accent="primary" />
       </div>
 
-      {isLoading ? (
-        <LoadingBlock />
-      ) : (
-        <DataTable
-          columns={transactionColumns}
-          data={transactions}
-          pageCount={pagination?.totalPages ?? 1}
-          pageIndex={pageIndex}
-          pageSize={pageSize}
-          onPageChange={setPageIndex}
-          onPageSizeChange={(size) => {
-            setPageSize(size);
-            setPageIndex(0);
-          }}
-          emptyMessage="No trade transactions yet."
+      <Tabs defaultValue="invoices" className="space-y-4">
+        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+          <TabsTrigger value="invoices" className="flex-1 sm:flex-none">
+            Invoices
+          </TabsTrigger>
+          <TabsTrigger value="received" className="flex-1 sm:flex-none">
+            Received Amount
+          </TabsTrigger>
+          <TabsTrigger value="expenses" className="flex-1 sm:flex-none">
+            Expenses
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="invoices">
+          <DataTable
+            columns={invoiceColumns}
+            data={invoicesData?.data.invoices ?? []}
+            pageCount={invoicesData?.data.pagination.totalPages ?? 1}
+            pageIndex={invoicePage}
+            pageSize={invoicePageSize}
+            onPageChange={setInvoicePage}
+            onPageSizeChange={(size) => {
+              setInvoicePageSize(size);
+              setInvoicePage(0);
+            }}
+            sorting={invoiceSorting}
+            onSortingChange={(next) => {
+              setInvoiceSorting(next);
+              setInvoicePage(0);
+            }}
+            isLoading={invoicesLoading}
+            emptyMessage="No trade invoices found."
+            toolbar={
+              canCreate ? (
+                <Button
+                  onClick={() => void openCreateDialog("invoice")}
+                  disabled={creatingDefaultProject || projectLookupLoading}
+                >
+                  Add Invoice
+                </Button>
+              ) : undefined
+            }
+          />
+        </TabsContent>
+
+        <TabsContent value="received">
+          <DataTable
+            columns={receivedColumns}
+            data={receivedData?.data.receivedAmounts ?? []}
+            pageCount={receivedData?.data.pagination.totalPages ?? 1}
+            pageIndex={receivedPage}
+            pageSize={receivedPageSize}
+            onPageChange={setReceivedPage}
+            onPageSizeChange={(size) => {
+              setReceivedPageSize(size);
+              setReceivedPage(0);
+            }}
+            sorting={receivedSorting}
+            onSortingChange={(next) => {
+              setReceivedSorting(next);
+              setReceivedPage(0);
+            }}
+            isLoading={receivedLoading}
+            emptyMessage="No trade received amounts found."
+            toolbar={
+              canCreate ? (
+                <Button
+                  className="bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-400 dark:bg-emerald-500 dark:hover:bg-emerald-400"
+                  onClick={() => void openCreateDialog("received")}
+                  disabled={creatingDefaultProject || projectLookupLoading}
+                >
+                  Add Received Amount
+                </Button>
+              ) : undefined
+            }
+          />
+        </TabsContent>
+
+        <TabsContent value="expenses">
+          <DataTable
+            columns={expenseColumns}
+            data={expensesData?.data.expenses ?? []}
+            pageCount={expensesData?.data.pagination.totalPages ?? 1}
+            pageIndex={expensePage}
+            pageSize={expensePageSize}
+            onPageChange={setExpensePage}
+            onPageSizeChange={(size) => {
+              setExpensePageSize(size);
+              setExpensePage(0);
+            }}
+            sorting={expenseSorting}
+            onSortingChange={(next) => {
+              setExpenseSorting(next);
+              setExpensePage(0);
+            }}
+            isLoading={expensesLoading}
+            emptyMessage="No trade expenses found."
+            toolbar={
+              canCreate ? (
+                <Button
+                  className="bg-amber-600 text-white hover:bg-amber-700 focus-visible:ring-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400"
+                  onClick={() => void openCreateDialog("expense")}
+                  disabled={creatingDefaultProject || projectLookupLoading}
+                >
+                  Add Expense
+                </Button>
+              ) : undefined
+            }
+          />
+        </TabsContent>
+      </Tabs>
+
+      {activeProjectId && (
+        <>
+          <InvoiceFormDialog open={invoiceOpen} onOpenChange={setInvoiceOpen} projectId={activeProjectId} />
+          <ReceivedAmountFormDialog open={receivedOpen} onOpenChange={setReceivedOpen} projectId={activeProjectId} />
+          <ExpenseFormDialog open={expenseOpen} onOpenChange={setExpenseOpen} projectId={activeProjectId} />
+        </>
+      )}
+
+      {editingInvoice && (
+        <InvoiceFormDialog
+          open={Boolean(editingInvoice)}
+          onOpenChange={(open) => !open && setEditingInvoice(null)}
+          projectId={editingInvoice.projectId}
+          invoice={editingInvoice}
+          onSuccess={() => setEditingInvoice(null)}
         />
       )}
+
+      {editingReceived && (
+        <ReceivedAmountFormDialog
+          open={Boolean(editingReceived)}
+          onOpenChange={(open) => !open && setEditingReceived(null)}
+          projectId={editingReceived.projectId}
+          receivedAmount={editingReceived}
+          onSuccess={() => setEditingReceived(null)}
+        />
+      )}
+
+      {editingExpense && (
+        <ExpenseFormDialog
+          open={Boolean(editingExpense)}
+          onOpenChange={(open) => !open && setEditingExpense(null)}
+          projectId={editingExpense.projectId}
+          expense={editingExpense}
+          onSuccess={() => setEditingExpense(null)}
+        />
+      )}
+
+      <ConfirmDialog
+        open={Boolean(deletingInvoice)}
+        onOpenChange={(open) => !open && setDeletingInvoice(null)}
+        title="Delete invoice?"
+        description="This action cannot be undone."
+        loading={deleteLoading}
+        onConfirm={confirmDeleteInvoice}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deletingReceived)}
+        onOpenChange={(open) => !open && setDeletingReceived(null)}
+        title="Delete received amount?"
+        description="This action cannot be undone."
+        loading={deleteLoading}
+        onConfirm={confirmDeleteReceived}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deletingExpense)}
+        onOpenChange={(open) => !open && setDeletingExpense(null)}
+        title="Delete expense?"
+        description="This action cannot be undone."
+        loading={deleteLoading}
+        onConfirm={confirmDeleteExpense}
+      />
+
+      <InvoiceViewDialog
+        invoice={viewingInvoice}
+        projectId={viewingInvoice?.projectId}
+        currency={currency}
+        onOpenChange={(open) => !open && setViewingInvoice(null)}
+      />
+
+      <ReceivedAmountViewDialog
+        receivedAmount={viewingReceived}
+        currency={currency}
+        onOpenChange={(open) => !open && setViewingReceived(null)}
+      />
+
+      <ExpenseViewDialog
+        expense={viewingExpense}
+        currency={currency}
+        onOpenChange={(open) => !open && setViewingExpense(null)}
+      />
     </div>
   );
 }

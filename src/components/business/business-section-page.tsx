@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { PermissionGate } from "@/components/auth/permission-gate";
+import { ModuleSummaryCards } from "@/components/business/module-summary-cards";
 import { ProjectFormDialog } from "@/components/business/project-form-dialog";
 import { ProjectsTable } from "@/components/business/projects-table";
-import { PageHeader, StatCard } from "@/components/shared/page-elements";
+import { ReportExportButton } from "@/components/business/report-export-button";
+import { PageHeader } from "@/components/shared/page-elements";
 import { Button } from "@/components/ui/button";
 import { usePermission } from "@/hooks/use-permission";
 import { useGetModuleReportQuery, useGetProjectsQuery } from "@/store/api/business-api";
@@ -59,35 +61,19 @@ function BusinessSectionContent({ businessType, title, description }: BusinessSe
       <PageHeader
         title={title}
         description={description}
-        actions={canCreate ? <Button onClick={() => setDialogOpen(true)}>Add Project</Button> : undefined}
+        actions={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <ReportExportButton businessType={businessType} />
+            {canCreate ? <Button onClick={() => setDialogOpen(true)}>Add Project</Button> : null}
+          </div>
+        }
       />
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <StatCard title="Total Projects" value={summary?.totalProjects ?? 0} accent="blue" onClick={() => router.push(`${basePath}#projects`)} />
-        <StatCard title="Total Invoices" value={summary?.totalInvoices ?? 0} accent="violet" onClick={() => router.push(`${basePath}/invoices`)} />
-        <StatCard
-          title="Total Invoice Amount"
-          value={summary?.totalInvoiceAmount ?? 0}
-          currency={currency}
-          accent="primary"
-          onClick={() => router.push(`${basePath}/invoices`)}
-        />
-        <StatCard
-          title="Total VAT"
-          value={summary?.totalVatAmount ?? 0}
-          currency={currency}
-          accent="violet"
-          subtitle="Preview only — not added to invoice totals"
-          onClick={() => router.push(`${basePath}/invoices`)}
-        />
-        <StatCard
-          title="Total Expenses"
-          value={summary?.totalExpenses ?? 0}
-          currency={currency}
-          accent="amber"
-          onClick={() => router.push(`${basePath}/expenses`)}
-        />
-      </div>
+      <ModuleSummaryCards
+        summary={summary}
+        currency={currency}
+        onNavigate={(section) => router.push(`${basePath}${section === "projects" ? "#projects" : `/${section}`}`)}
+      />
 
       <div id="projects" className="space-y-4">
         <h2 className="text-xl font-bold tracking-tight text-foreground">Projects</h2>

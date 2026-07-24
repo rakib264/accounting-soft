@@ -1,15 +1,13 @@
 import { NextRequest } from "next/server";
-import { EmptyRouteContext } from "@/lib/api/route-context";
 
 import { buildSortObject, parsePaginationParams } from "@/lib/api/pagination";
 import { asPaginateResult } from "@/lib/api/paginate-result";
+import { getInvoiceAmountDue, normalizeInvoiceAmounts } from "@/lib/api/invoice-totals";
 import { ok } from "@/lib/api/response";
 import { withRouteGuard } from "@/lib/api/route-guard";
 import { connectToDatabase } from "@/lib/db";
 import { InvoiceModel } from "@/models/Invoice";
 import { ProjectModel } from "@/models/Project";
-
-type RouteContext = EmptyRouteContext;
 
 async function listAllInvoices(request: NextRequest) {
   await connectToDatabase();
@@ -25,7 +23,7 @@ async function listAllInvoices(request: NextRequest) {
 
   if (projectId) {
     query.projectId = projectId;
-  } else if (businessType === "manpower" || businessType === "subcontract") {
+  } else if (businessType === "manpower" || businessType === "subcontract" || businessType === "trade") {
     const projects = await ProjectModel.find({ businessType }).select("_id").lean();
     query.projectId = { $in: projects.map((p) => p._id) };
   }
@@ -62,20 +60,24 @@ async function listAllInvoices(request: NextRequest) {
   const projectMap = new Map(projects.map((p) => [p._id.toString(), p.name]));
 
   return ok({
-    invoices: result.docs.map((invoice) => ({
-      id: invoice._id.toString(),
-      projectId: invoice.projectId.toString(),
-      projectName: projectMap.get(invoice.projectId.toString()) ?? "Unknown",
-      lineItems: invoice.lineItems,
-      lineItemSummary: invoice.lineItems.map((item) => item.label).join(", "),
-      invoiceDate: invoice.invoiceDate,
-      vatPercent: invoice.vatPercent,
-      vatAmount: invoice.vatAmount,
-      subtotal: invoice.subtotal,
-      total: invoice.total,
-      attachments: invoice.attachments,
-      createdAt: invoice.createdAt,
-    })),
+    invoices: result.docs.map((invoice) => {
+      const normalized = normalizeInvoiceAmounts(invoice);
+      return {
+        id: invoice._id.toString(),
+        projectId: invoice.projectId.toString(),
+        projectName: projectMap.get(invoice.projectId.toString()) ?? "Unknown",
+        lineItems: invoice.lineItems,
+        lineItemSummary: invoice.lineItems.map((item) => item.label).join(", "),
+        invoiceDate: invoice.invoiceDate,
+        vatPercent: invoice.vatPercent,
+        vatAmount: invoice.vatAmount,
+        subtotal: invoice.subtotal,
+        total: normalized.total,
+        amountDue: getInvoiceAmountDue(invoice),
+        attachments: invoice.attachments,
+        createdAt: invoice.createdAt,
+      };
+    }),
     pagination: {
       page: result.page,
       limit: result.limit,

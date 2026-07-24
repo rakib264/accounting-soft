@@ -1,6 +1,8 @@
 import mongoose, { HydratedDocument, Model, Schema, Types } from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
 
+import { getInvoiceGrossTotal } from "@/lib/api/invoice-totals";
+
 type InvoiceLineItem = {
   label: string;
   amount: number;
@@ -57,6 +59,10 @@ const invoiceSchema = new Schema<Invoice, InvoiceModel>(
 );
 
 invoiceSchema.plugin(mongoosePaginate);
+
+invoiceSchema.pre("save", function syncGrossTotal() {
+  this.total = getInvoiceGrossTotal(this);
+});
 
 export const InvoiceModel =
   (mongoose.models.Invoice as InvoiceModel) || mongoose.model<Invoice, InvoiceModel>("Invoice", invoiceSchema);

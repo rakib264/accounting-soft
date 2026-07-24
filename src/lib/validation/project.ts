@@ -1,6 +1,13 @@
 import { z } from "zod";
 
-export const businessTypeSchema = z.enum(["manpower", "subcontract"]);
+function parseOptionalReceivedDate(value: unknown) {
+  if (value === "" || value === null || value === undefined) return null;
+  const date = new Date(value as string | number | Date);
+  if (Number.isNaN(date.getTime()) || date.getFullYear() < 1971) return null;
+  return date;
+}
+
+export const businessTypeSchema = z.enum(["manpower", "subcontract", "trade"]);
 
 export const createProjectSchema = z.object({
   name: z.string().trim().min(1, "Project name is required."),
@@ -37,6 +44,14 @@ export const createExpenseSchema = z.object({
 });
 
 export const updateExpenseSchema = createExpenseSchema.partial();
+
+export const createReceivedAmountSchema = z.object({
+  invoiceId: z.string().trim().min(1, "Invoice is required."),
+  amount: z.coerce.number().positive("Amount must be greater than zero."),
+  receivedDate: z.preprocess(parseOptionalReceivedDate, z.date().nullable().optional()),
+});
+
+export const updateReceivedAmountSchema = createReceivedAmountSchema.partial();
 
 export const tradeTransactionSchema = z.object({
   date: z.coerce.date(),

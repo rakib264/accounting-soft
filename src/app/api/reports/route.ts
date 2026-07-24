@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
-import { EmptyRouteContext } from "@/lib/api/route-context";
-import { Types } from "mongoose";
 
+import { invoiceGrossTotalExpression } from "@/lib/api/invoice-totals";
 import { getProjectFinancials } from "@/lib/api/reporting";
 import { fail, ok } from "@/lib/api/response";
 import { withRouteGuard } from "@/lib/api/route-guard";
@@ -13,8 +12,6 @@ import { InvoiceModel } from "@/models/Invoice";
 import { ProjectModel } from "@/models/Project";
 import { TradeTransactionModel } from "@/models/TradeTransaction";
 
-type RouteContext = EmptyRouteContext;
-
 function parseDateRange(request: NextRequest) {
   const from = request.nextUrl.searchParams.get("from");
   const to = request.nextUrl.searchParams.get("to");
@@ -24,12 +21,14 @@ function parseDateRange(request: NextRequest) {
   };
 }
 
-async function getDashboardReport(_request: NextRequest) {
+async function getDashboardReport() {
   await connectToDatabase();
 
   const [projectCount, invoiceStats, expenseStats, tradeStats, monthlyInvoices, monthlyExpenses] = await Promise.all([
     ProjectModel.countDocuments(),
-    InvoiceModel.aggregate([{ $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }]),
+    InvoiceModel.aggregate([
+      { $group: { _id: null, total: { $sum: invoiceGrossTotalExpression }, count: { $sum: 1 } } },
+    ]),
     ExpenseModel.aggregate([
       { $unwind: "$entries" },
       { $group: { _id: null, total: { $sum: "$entries.amount" }, count: { $sum: 1 } } },
@@ -47,7 +46,7 @@ async function getDashboardReport(_request: NextRequest) {
       {
         $group: {
           _id: { year: { $year: "$invoiceDate" }, month: { $month: "$invoiceDate" } },
-          revenue: { $sum: "$total" },
+          revenue: { $sum: invoiceGrossTotalExpression },
         },
       },
       { $sort: { "_id.year": 1, "_id.month": 1 } },
@@ -119,7 +118,7 @@ async function getModuleReport(request: NextRequest) {
 
   const projectQuery: Record<string, unknown> = {};
 
-  if (businessType === "manpower" || businessType === "subcontract") {
+  if (businessType === "manpower" || businessType === "subcontract" || businessType === "trade") {
     projectQuery.businessType = businessType;
   }
 
@@ -130,52 +129,18 @@ async function getModuleReport(request: NextRequest) {
   const projects = await ProjectModel.find(projectQuery).select("_id").lean();
   const projectIds = projects.map((p) => p._id.toString());
 
-  const invoiceQuery: Record<string, unknown> = { projectId: { $in: projectIds.map((id) => new Types.ObjectId(id)) } };
-  const expenseMatch: Record<string, unknown> = { projectId: { $in: projectIds.map((id) => new Types.ObjectId(id)) } };
-
-  if (Object.keys(dateRange).length > 0) {
-    invoiceQuery.invoiceDate = dateRange;
-  }
-
-  const [financials, filteredInvoices, filteredExpenses] = await Promise.all([
-    getProjectFinancials(projectIds),
-    Object.keys(dateRange).length
-      ? InvoiceModel.aggregate([
-          { $match: invoiceQuery },
-          {
-            $group: {
-              _id: null,
-              total: { $sum: "$total" },
-              totalVat: { $sum: "$vatAmount" },
-              count: { $sum: 1 },
-            },
-          },
-        ])
-      : Promise.resolve([]),
-    Object.keys(dateRange).length
-      ? ExpenseModel.aggregate([
-          { $match: expenseMatch },
-          { $unwind: "$entries" },
-          ...(Object.keys(dateRange).length ? [{ $match: { "entries.date": dateRange } }] : []),
-          { $group: { _id: null, total: { $sum: "$entries.amount" }, count: { $sum: 1 } } },
-        ])
-      : Promise.resolve([]),
-  ]);
-
-  const totalInvoiced = filteredInvoices[0]?.total ?? financials.totalInvoiced;
-  const totalVatAmount = filteredInvoices[0]?.totalVat ?? financials.totalVatAmount;
-  const totalExpenses = filteredExpenses[0]?.total ?? financials.totalExpenses;
-  const invoiceCount = filteredInvoices[0]?.count ?? financials.invoiceCount;
-  const expenseCount = filteredExpenses[0]?.count ?? financials.expenseCount;
+  const financials = await getProjectFinancials(projectIds, dateRange);
 
   return ok({
     summary: {
       totalProjects: projectIds.length,
-      totalInvoices: invoiceCount,
-      totalInvoiceAmount: totalInvoiced,
-      totalVatAmount,
-      totalExpenses,
-      netProfit: totalInvoiced - totalExpenses,
+      totalInvoices: financials.invoiceCount,
+      totalInvoiceAmount: financials.totalInvoiced,
+      totalVatAmount: financials.totalVatAmount,
+      totalReceived: financials.totalReceived,
+      totalDue: financials.totalDue,
+      totalExpenses: financials.totalExpenses,
+      netIncome: financials.netIncome,
     },
   });
 }
@@ -193,6 +158,6 @@ export const GET = withRouteGuard(
       return getModuleReport(request);
     }
 
-    return getDashboardReport(request);
+    return getDashboardReport();
   },
 );

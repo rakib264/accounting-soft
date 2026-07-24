@@ -8,6 +8,7 @@ import { connectToDatabase } from "@/lib/db";
 import { updateProjectSchema } from "@/lib/validation/project";
 import { ExpenseModel } from "@/models/Expense";
 import { InvoiceModel } from "@/models/Invoice";
+import { ReceivedAmountModel } from "@/models/ReceivedAmount";
 import { ProjectModel } from "@/models/Project";
 import { AuthUser } from "@/types/auth";
 
@@ -37,8 +38,12 @@ async function getProject(_request: NextRequest, context: RouteContext) {
       totalInvoiced: financials.totalInvoiced,
       totalExpenses: financials.totalExpenses,
       totalVatAmount: financials.totalVatAmount,
+      totalReceived: financials.totalReceived,
+      totalDue: financials.totalDue,
+      netIncome: financials.netIncome,
       invoiceCount: financials.invoiceCount,
       expenseCount: financials.expenseCount,
+      receivedCount: financials.receivedCount,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
     },
@@ -106,6 +111,9 @@ async function updateProject(request: NextRequest, context: RouteContext, authUs
       totalInvoiced: financials.totalInvoiced,
       totalExpenses: financials.totalExpenses,
       totalVatAmount: financials.totalVatAmount,
+      totalReceived: financials.totalReceived,
+      totalDue: financials.totalDue,
+      netIncome: financials.netIncome,
       createdAt: existing.createdAt,
       updatedAt: existing.updatedAt,
     },
@@ -125,6 +133,7 @@ async function deleteProject(request: NextRequest, context: RouteContext, authUs
   await Promise.all([
     InvoiceModel.deleteMany({ projectId: id }),
     ExpenseModel.deleteMany({ projectId: id }),
+    ReceivedAmountModel.deleteMany({ projectId: id }),
     ProjectModel.findByIdAndDelete(id),
   ]);
 

@@ -4,9 +4,12 @@ import { createAuditLog, getRequestIpAddress } from "@/lib/api/audit";
 import { buildSortObject, parsePaginationParams } from "@/lib/api/pagination";
 import { fail, ok } from "@/lib/api/response";
 import { withRouteGuard } from "@/lib/api/route-guard";
+import { getInvoiceGrossTotal } from "@/lib/api/invoice-totals";
+import { getInvoiceReceivedTotal } from "@/lib/api/received-amount";
 import { connectToDatabase } from "@/lib/db";
 import { updateInvoiceSchema } from "@/lib/validation/project";
 import { InvoiceModel } from "@/models/Invoice";
+import { ReceivedAmountModel } from "@/models/ReceivedAmount";
 import { SettingsModel } from "@/models/Settings";
 import { AuthUser } from "@/types/auth";
 
@@ -45,10 +48,20 @@ async function updateInvoice(request: NextRequest, context: RouteContext, authUs
     invoice.vatPercent = vatPercent;
     invoice.vatAmount = (subtotal * vatPercent) / 100;
     invoice.subtotal = subtotal;
-    invoice.total = subtotal;
+    invoice.total = subtotal + invoice.vatAmount;
+
+    const receivedTotal = await getInvoiceReceivedTotal(id);
+    const grossTotal = getInvoiceGrossTotal(invoice);
+    if (grossTotal < receivedTotal) {
+      return fail("Invoice total cannot be less than the total received amount for this invoice.", 400);
+    }
   }
 
+  invoice.total = getInvoiceGrossTotal(invoice);
+
   await invoice.save();
+
+  const grossTotal = getInvoiceGrossTotal(invoice);
 
   await createAuditLog({
     actor: authUser,
@@ -69,7 +82,7 @@ async function updateInvoice(request: NextRequest, context: RouteContext, authUs
       vatPercent: invoice.vatPercent,
       vatAmount: invoice.vatAmount,
       subtotal: invoice.subtotal,
-      total: invoice.total,
+      total: grossTotal,
       attachments: invoice.attachments,
     },
   });
@@ -81,6 +94,11 @@ async function deleteInvoice(request: NextRequest, context: RouteContext, authUs
 
   const invoice = await InvoiceModel.findById(id);
   if (!invoice) return fail("Invoice not found.", 404);
+
+  const receivedCount = await ReceivedAmountModel.countDocuments({ invoiceId: id });
+  if (receivedCount > 0) {
+    return fail("Cannot delete invoice with recorded received amounts. Delete received amounts first.", 400);
+  }
 
   await InvoiceModel.findByIdAndDelete(id);
 
